@@ -22,22 +22,32 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("⚡ Trading Alpha - Execution POC")
-st.markdown("---")
-
 # 2. Layout: Sidebar for Daily Inputs
 with st.sidebar:
+    st.header("0. Asset Selection")
+    # Ticker Input Added Here
+    ticker = st.text_input("Ticker Code", value="ORWE").upper()
+    
     st.header("1. Previous Day Data")
     high = st.number_input("High", value=12.99, step=0.01)
     low = st.number_input("Low", value=11.49, step=0.01)
     close = st.number_input("Close", value=12.40, step=0.01)
     
-    st.header("2. Live Market Data")
-    current_price = st.number_input("Current Price", value=12.50, step=0.01)
+    st.header("2. Today's Opening Data")
+    open_price = st.number_input("Open Price", value=11.36, step=0.01)
+    or_high = st.number_input("OR High (Opening Range)", value=12.40, step=0.01)
+    or_low = st.number_input("OR Low (Opening Range)", value=12.00, step=0.01)
+
+    st.header("3. Live Market Data")
+    current_price = st.number_input("Current Price", value=12.30, step=0.01)
     vwap = st.number_input("VWAP", value=12.40, step=0.01)
     rsi = st.number_input("RSI", value=60.0, step=1.0)
-    current_volume = st.number_input("Current Volume", value=50000000, step=100000)
-    avg_volume = st.number_input("30D Avg Volume", value=28000000, step=100000)
+    current_volume = st.number_input("Current Volume", value=56700000, step=100000)
+    avg_volume = st.number_input("30D Avg Volume", value=28100000, step=100000)
+
+# Ticker Displayed dynamically in the title
+st.title(f"⚡ Trading Alpha - Execution POC | {ticker}")
+st.markdown("---")
 
 # 3. Core Calculations
 pivot = (high + low + close) / 3
@@ -49,6 +59,8 @@ vol_strength = "Strong" if current_volume > (avg_volume * 1.2) else "Weak"
 # 4. Strategy Engine
 def evaluate_strategy(strategy_name, price, vwap, rsi, vol_status, r1, s1):
     decision = "Don't Enter"
+    
+    # حماية من التشبع الشرائي
     if rsi > 75:
         return "Don't Enter (RSI Overbought)"
 
@@ -61,6 +73,7 @@ def evaluate_strategy(strategy_name, price, vwap, rsi, vol_status, r1, s1):
     elif strategy_name == "Bounce":
         if price > s1 and rsi > 50 and vol_status == "Strong":
             decision = "Enter"
+            
     return decision
 
 breakout_dec = evaluate_strategy("Breakout", current_price, vwap, rsi, vol_strength, r1, s1)
@@ -97,7 +110,8 @@ LOG_FILE = "trade_log.csv"
 
 with st.form("log_form"):
     col_log1, col_log2, col_log3 = st.columns(3)
-    log_ticker = col_log1.text_input("Ticker (e.g., ORWE)")
+    # Ticker automatically pulled from the sidebar input
+    log_ticker = col_log1.text_input("Ticker", value=ticker)
     log_strategy = col_log2.selectbox("Strategy", strategies)
     log_status = col_log3.selectbox("Result", ["Win", "Loss", "Breakeven"])
     
