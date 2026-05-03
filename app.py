@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+import os
+from datetime import datetime
 
 # 1. Page Configuration & Modern Minimalist Styling
 st.set_page_config(page_title="Trading Alpha POC", layout="wide")
@@ -47,8 +49,6 @@ vol_strength = "Strong" if current_volume > (avg_volume * 1.2) else "Weak"
 # 4. Strategy Engine
 def evaluate_strategy(strategy_name, price, vwap, rsi, vol_status, r1, s1):
     decision = "Don't Enter"
-    
-    # RSI Safety Cap (Avoid Overbought)
     if rsi > 75:
         return "Don't Enter (RSI Overbought)"
 
@@ -56,15 +56,13 @@ def evaluate_strategy(strategy_name, price, vwap, rsi, vol_status, r1, s1):
         if price > r1 and price > vwap and rsi >= 55 and vol_status == "Strong":
             decision = "Enter"
     elif strategy_name == "Pullback":
-        if price > vwap and rsi >= 55 and vol_status == "Strong": # Simplified logic
+        if price > vwap and rsi >= 55 and vol_status == "Strong": 
             decision = "Enter"
     elif strategy_name == "Bounce":
         if price > s1 and rsi > 50 and vol_status == "Strong":
             decision = "Enter"
-            
     return decision
 
-# Evaluate all three
 breakout_dec = evaluate_strategy("Breakout", current_price, vwap, rsi, vol_strength, r1, s1)
 pullback_dec = evaluate_strategy("Pullback", current_price, vwap, rsi, vol_strength, r1, s1)
 bounce_dec = evaluate_strategy("Bounce", current_price, vwap, rsi, vol_strength, r1, s1)
@@ -76,19 +74,55 @@ col2.metric("R1 (Resistance)", f"{r1:.2f}")
 col3.metric("S1 (Support)", f"{s1:.2f}")
 col4.metric("Volume Status", vol_strength)
 
-st.markdown("### Strategy Signals")
-
-# Display Results neatly
+st.markdown("### 🎯 Strategy Signals")
 results = []
 strategies = ["Breakout", "Pullback", "Bounce"]
 decisions = [breakout_dec, pullback_dec, bounce_dec]
 
 for strat, dec in zip(strategies, decisions):
     if dec == "Enter":
-        stop_loss = current_price * 0.99  # 1% strict stop loss
-        target = current_price * 1.03     # 3% target for short swings
+        stop_loss = current_price * 0.99
+        target = current_price * 1.03
         results.append({"Strategy": strat, "Signal": "🟢 ENTER", "Entry": current_price, "Stop Loss (-1%)": round(stop_loss, 2), "Target (+3%)": round(target, 2)})
     else:
         results.append({"Strategy": strat, "Signal": f"🔴 {dec}", "Entry": "-", "Stop Loss (-1%)": "-", "Target (+3%)": "-"})
 
 st.table(pd.DataFrame(results))
+
+# 6. Trade Log (Track & Trace)
+st.markdown("---")
+st.header("📋 Operations Log")
+
+LOG_FILE = "trade_log.csv"
+
+with st.form("log_form"):
+    col_log1, col_log2, col_log3 = st.columns(3)
+    log_ticker = col_log1.text_input("Ticker (e.g., ORWE)")
+    log_strategy = col_log2.selectbox("Strategy", strategies)
+    log_status = col_log3.selectbox("Result", ["Win", "Loss", "Breakeven"])
+    
+    log_profit = st.number_input("Net P/L % (After Comm.)", value=0.0, step=0.1)
+    submitted = st.form_submit_button("Log Operation")
+    
+    if submitted and log_ticker:
+        new_data = pd.DataFrame({
+            "Date": [datetime.now().strftime("%Y-%m-%d %H:%M")],
+            "Ticker": [log_ticker.upper()],
+            "Strategy": [log_strategy],
+            "Result": [log_status],
+            "P/L %": [log_profit]
+        })
+        
+        if os.path.exists(LOG_FILE):
+            log_df = pd.read_csv(LOG_FILE)
+            log_df = pd.concat([log_df, new_data], ignore_index=True)
+        else:
+            log_df = new_data
+            
+        log_df.to_csv(LOG_FILE, index=False)
+        st.success("Operation logged successfully!")
+
+# Display Historical Log
+if os.path.exists(LOG_FILE):
+    st.markdown("#### Historical Data")
+    st.dataframe(pd.read_csv(LOG_FILE), use_container_width=True)
