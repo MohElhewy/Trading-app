@@ -8,24 +8,47 @@ st.set_page_config(page_title="Trading Alpha POC", layout="wide")
 
 st.markdown("""
     <style>
-    /* Deep Navy & Electric Blue Theme */
-    .stApp { background-color: #0A1128; color: #F1F5F9; }
-    h1, h2, h3 { color: #5BC0BE !important; }
-    div[data-testid="stMetricValue"] { color: #5BC0BE; }
-    .stButton>button {
-        background-color: #1C2541;
-        color: white;
-        border-radius: 4px;
-        border: 1px solid #5BC0BE;
+    /* Deep Navy Background */
+    .stApp, [data-testid="stAppViewContainer"] { background-color: #0A1128 !important; }
+    [data-testid="stSidebar"] { background-color: #070D1F !important; } 
+    
+    /* Force ALL regular text, labels, and table cells to be White */
+    html, body, p, span, div, label, li, td, th { 
+        color: #FFFFFF !important; 
     }
-    .stButton>button:hover { background-color: #5BC0BE; color: #0A1128; }
+    
+    /* Keep Headers Electric Blue */
+    h1, h2, h3, h4, h5, h6 { 
+        color: #5BC0BE !important; 
+    }
+    
+    /* Metrics numbers styling */
+    div[data-testid="stMetricValue"] > div { 
+        color: #5BC0BE !important; 
+    }
+    
+    /* Input box text color fix */
+    input, .stSelectbox div[data-baseweb="select"] { 
+        color: #FFFFFF !important; 
+    }
+    
+    /* Button Styling */
+    .stButton>button {
+        background-color: #1C2541 !important;
+        color: #FFFFFF !important;
+        border-radius: 4px;
+        border: 1px solid #5BC0BE !important;
+    }
+    .stButton>button:hover { 
+        background-color: #5BC0BE !important; 
+        color: #0A1128 !important; 
+    }
     </style>
 """, unsafe_allow_html=True)
 
 # 2. Layout: Sidebar for Daily Inputs
 with st.sidebar:
     st.header("0. Asset Selection")
-    # Ticker Input Added Here
     ticker = st.text_input("Ticker Code", value="ORWE").upper()
     
     st.header("1. Previous Day Data")
@@ -45,7 +68,6 @@ with st.sidebar:
     current_volume = st.number_input("Current Volume", value=56700000, step=100000)
     avg_volume = st.number_input("30D Avg Volume", value=28100000, step=100000)
 
-# Ticker Displayed dynamically in the title
 st.title(f"⚡ Trading Alpha - Execution POC | {ticker}")
 st.markdown("---")
 
@@ -56,29 +78,47 @@ s1 = (2 * pivot) - high
 
 vol_strength = "Strong" if current_volume > (avg_volume * 1.2) else "Weak"
 
-# 4. Strategy Engine
-def evaluate_strategy(strategy_name, price, vwap, rsi, vol_status, r1, s1):
+# 4. Strategy Engine & Condition Tracking
+def evaluate_strategy_with_conditions(strategy_name, price, vwap, rsi, vol_status, r1, s1):
     decision = "Don't Enter"
+    conditions = {}
     
-    # حماية من التشبع الشرائي
-    if rsi > 75:
-        return "Don't Enter (RSI Overbought)"
+    # RSI Safety Cap 
+    overbought = rsi > 75
+    conditions["Not Overbought (RSI <= 75)"] = not overbought
 
     if strategy_name == "Breakout":
-        if price > r1 and price > vwap and rsi >= 55 and vol_status == "Strong":
-            decision = "Enter"
-    elif strategy_name == "Pullback":
-        if price > vwap and rsi >= 55 and vol_status == "Strong": 
-            decision = "Enter"
-    elif strategy_name == "Bounce":
-        if price > s1 and rsi > 50 and vol_status == "Strong":
+        conditions["Price > R1"] = price > r1
+        conditions["Price > VWAP"] = price > vwap
+        conditions["RSI >= 55"] = rsi >= 55
+        conditions["Strong Volume"] = vol_status == "Strong"
+        
+        if all(conditions.values()) and not overbought:
             decision = "Enter"
             
-    return decision
+    elif strategy_name == "Pullback":
+        # Simplified Pullback Logic based on the sheet
+        conditions["Price > VWAP"] = price > vwap
+        conditions["RSI >= 55"] = rsi >= 55
+        conditions["Strong Volume"] = vol_status == "Strong"
+        
+        if all(conditions.values()) and not overbought:
+            decision = "Enter"
+            
+    elif strategy_name == "Bounce":
+        conditions["Price > S1"] = price > s1
+        conditions["RSI > 50"] = rsi > 50
+        conditions["Strong Volume"] = vol_status == "Strong"
+        
+        if all(conditions.values()) and not overbought:
+            decision = "Enter"
+            
+    return decision, conditions
 
-breakout_dec = evaluate_strategy("Breakout", current_price, vwap, rsi, vol_strength, r1, s1)
-pullback_dec = evaluate_strategy("Pullback", current_price, vwap, rsi, vol_strength, r1, s1)
-bounce_dec = evaluate_strategy("Bounce", current_price, vwap, rsi, vol_strength, r1, s1)
+# Evaluate all three and get conditions
+breakout_dec, breakout_conds = evaluate_strategy_with_conditions("Breakout", current_price, vwap, rsi, vol_strength, r1, s1)
+pullback_dec, pullback_conds = evaluate_strategy_with_conditions("Pullback", current_price, vwap, rsi, vol_strength, r1, s1)
+bounce_dec, bounce_conds = evaluate_strategy_with_conditions("Bounce", current_price, vwap, rsi, vol_strength, r1, s1)
 
 # 5. Dashboard Display
 col1, col2, col3, col4 = st.columns(4)
@@ -88,6 +128,8 @@ col3.metric("S1 (Support)", f"{s1:.2f}")
 col4.metric("Volume Status", vol_strength)
 
 st.markdown("### 🎯 Strategy Signals")
+
+# Display Results Table
 results = []
 strategies = ["Breakout", "Pullback", "Bounce"]
 decisions = [breakout_dec, pullback_dec, bounce_dec]
@@ -102,6 +144,22 @@ for strat, dec in zip(strategies, decisions):
 
 st.table(pd.DataFrame(results))
 
+# --- NEW SECTION: Display Conditions ---
+st.markdown("### 🔍 Conditions Breakdown")
+cond_col1, cond_col2, cond_col3 = st.columns(3)
+
+def render_conditions(column, strategy_name, conditions):
+    with column:
+        st.markdown(f"**{strategy_name}**")
+        for cond, is_met in conditions.items():
+            icon = "✅" if is_met else "❌"
+            st.write(f"{icon} {cond}")
+
+render_conditions(cond_col1, "Breakout", breakout_conds)
+render_conditions(cond_col2, "Pullback", pullback_conds)
+render_conditions(cond_col3, "Bounce", bounce_conds)
+# ---------------------------------------
+
 # 6. Trade Log (Track & Trace)
 st.markdown("---")
 st.header("📋 Operations Log")
@@ -110,7 +168,6 @@ LOG_FILE = "trade_log.csv"
 
 with st.form("log_form"):
     col_log1, col_log2, col_log3 = st.columns(3)
-    # Ticker automatically pulled from the sidebar input
     log_ticker = col_log1.text_input("Ticker", value=ticker)
     log_strategy = col_log2.selectbox("Strategy", strategies)
     log_status = col_log3.selectbox("Result", ["Win", "Loss", "Breakeven"])
