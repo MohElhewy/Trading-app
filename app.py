@@ -46,37 +46,47 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 2. Layout: Sidebar for Daily Inputs
+# 2. Layout: Sidebar for Daily Inputs (NO HARDCODED VALUES)
 with st.sidebar:
     st.header("0. Asset Selection")
-    ticker = st.text_input("Ticker Code", value="ORWE").upper()
+    ticker = st.text_input("Ticker Code", placeholder="e.g., ORWE").upper()
     
     st.header("1. Previous Day Data")
-    high = st.number_input("High", value=12.99, step=0.01)
-    low = st.number_input("Low", value=11.49, step=0.01)
-    close = st.number_input("Close", value=12.40, step=0.01)
+    high = st.number_input("High", value=0.0, step=0.01, format="%.2f")
+    low = st.number_input("Low", value=0.0, step=0.01, format="%.2f")
+    close = st.number_input("Close", value=0.0, step=0.01, format="%.2f")
     
     st.header("2. Today's Opening Data")
-    open_price = st.number_input("Open Price", value=11.36, step=0.01)
-    or_high = st.number_input("OR High (Opening Range)", value=12.40, step=0.01)
-    or_low = st.number_input("OR Low (Opening Range)", value=12.00, step=0.01)
+    open_price = st.number_input("Open Price", value=0.0, step=0.01, format="%.2f")
+    or_high = st.number_input("OR High (Opening Range)", value=0.0, step=0.01, format="%.2f")
+    or_low = st.number_input("OR Low (Opening Range)", value=0.0, step=0.01, format="%.2f")
 
     st.header("3. Live Market Data")
-    current_price = st.number_input("Current Price", value=12.30, step=0.01)
-    vwap = st.number_input("VWAP", value=12.40, step=0.01)
-    rsi = st.number_input("RSI", value=60.0, step=1.0)
-    current_volume = st.number_input("Current Volume", value=56700000, step=100000)
-    avg_volume = st.number_input("30D Avg Volume", value=28100000, step=100000)
+    current_price = st.number_input("Current Price", value=0.0, step=0.01, format="%.2f")
+    vwap = st.number_input("VWAP", value=0.0, step=0.01, format="%.2f")
+    rsi = st.number_input("RSI", value=0.0, step=1.0)
+    current_volume = st.number_input("Current Volume", value=0, step=1000)
+    avg_volume = st.number_input("30D Avg Volume", value=0, step=1000)
 
-st.title(f"⚡ Trading Alpha - Execution POC | {ticker}")
+title_text = f"⚡ Trading Alpha - Execution POC | {ticker}" if ticker else "⚡ Trading Alpha - Execution POC"
+st.title(title_text)
 st.markdown("---")
 
-# 3. Core Calculations
-pivot = (high + low + close) / 3
-r1 = (2 * pivot) - low
-s1 = (2 * pivot) - high
+# 3. Core Calculations & Validation
+# Ensure previous day data is entered before calculating Pivot points
+if high > 0 and low > 0 and close > 0:
+    pivot = (high + low + close) / 3
+    r1 = (2 * pivot) - low
+    s1 = (2 * pivot) - high
+    data_ready = True
+else:
+    pivot, r1, s1 = 0.0, 0.0, 0.0
+    data_ready = False
 
-vol_strength = "Strong" if current_volume > (avg_volume * 1.2) else "Weak"
+# Volume Strength Calculation
+vol_strength = "Weak"
+if avg_volume > 0:
+    vol_strength = "Strong" if current_volume > (avg_volume * 1.2) else "Weak"
 
 # 4. Strategy Engine & Condition Tracking
 def evaluate_strategy_with_conditions(strategy_name, price, vwap, rsi, vol_status, r1, s1):
@@ -88,39 +98,40 @@ def evaluate_strategy_with_conditions(strategy_name, price, vwap, rsi, vol_statu
     conditions["Not Overbought (RSI <= 75)"] = not overbought
 
     if strategy_name == "Breakout":
-        conditions["Price > R1"] = price > r1
-        conditions["Price > VWAP"] = price > vwap
+        conditions["Price > R1"] = price > r1 if r1 > 0 else False
+        conditions["Price > VWAP"] = price > vwap if vwap > 0 else False
         conditions["RSI >= 55"] = rsi >= 55
         conditions["Strong Volume"] = vol_status == "Strong"
         
-        if all(conditions.values()) and not overbought:
+        if all(conditions.values()) and not overbought and price > 0:
             decision = "Enter"
             
     elif strategy_name == "Pullback":
-        # Simplified Pullback Logic based on the sheet
-        conditions["Price > VWAP"] = price > vwap
+        conditions["Price > VWAP"] = price > vwap if vwap > 0 else False
         conditions["RSI >= 55"] = rsi >= 55
         conditions["Strong Volume"] = vol_status == "Strong"
         
-        if all(conditions.values()) and not overbought:
+        if all(conditions.values()) and not overbought and price > 0:
             decision = "Enter"
             
     elif strategy_name == "Bounce":
-        conditions["Price > S1"] = price > s1
+        conditions["Price > S1"] = price > s1 if s1 > 0 else False
         conditions["RSI > 50"] = rsi > 50
         conditions["Strong Volume"] = vol_status == "Strong"
         
-        if all(conditions.values()) and not overbought:
+        if all(conditions.values()) and not overbought and price > 0:
             decision = "Enter"
             
     return decision, conditions
 
-# Evaluate all three and get conditions
 breakout_dec, breakout_conds = evaluate_strategy_with_conditions("Breakout", current_price, vwap, rsi, vol_strength, r1, s1)
 pullback_dec, pullback_conds = evaluate_strategy_with_conditions("Pullback", current_price, vwap, rsi, vol_strength, r1, s1)
 bounce_dec, bounce_conds = evaluate_strategy_with_conditions("Bounce", current_price, vwap, rsi, vol_strength, r1, s1)
 
 # 5. Dashboard Display
+if not data_ready:
+    st.info("⚠️ Please enter 'Previous Day Data' in the sidebar to calculate Pivot points and enable strategies.")
+
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Pivot", f"{pivot:.2f}")
 col2.metric("R1 (Resistance)", f"{r1:.2f}")
@@ -135,16 +146,17 @@ strategies = ["Breakout", "Pullback", "Bounce"]
 decisions = [breakout_dec, pullback_dec, bounce_dec]
 
 for strat, dec in zip(strategies, decisions):
-    if dec == "Enter":
+    if dec == "Enter" and data_ready:
         stop_loss = current_price * 0.99
         target = current_price * 1.03
         results.append({"Strategy": strat, "Signal": "🟢 ENTER", "Entry": current_price, "Stop Loss (-1%)": round(stop_loss, 2), "Target (+3%)": round(target, 2)})
     else:
-        results.append({"Strategy": strat, "Signal": f"🔴 {dec}", "Entry": "-", "Stop Loss (-1%)": "-", "Target (+3%)": "-"})
+        signal_text = "🔴 Don't Enter" if data_ready else "⏳ Waiting for Data"
+        results.append({"Strategy": strat, "Signal": signal_text, "Entry": "-", "Stop Loss (-1%)": "-", "Target (+3%)": "-"})
 
 st.table(pd.DataFrame(results))
 
-# --- NEW SECTION: Display Conditions ---
+# --- Conditions Breakdown ---
 st.markdown("### 🔍 Conditions Breakdown")
 cond_col1, cond_col2, cond_col3 = st.columns(3)
 
@@ -152,7 +164,7 @@ def render_conditions(column, strategy_name, conditions):
     with column:
         st.markdown(f"**{strategy_name}**")
         for cond, is_met in conditions.items():
-            icon = "✅" if is_met else "❌"
+            icon = "✅" if is_met and data_ready else "❌"
             st.write(f"{icon} {cond}")
 
 render_conditions(cond_col1, "Breakout", breakout_conds)
