@@ -51,7 +51,7 @@ st.markdown("""
         border: 1px solid #5BC0BE !important;
     }
     .stButton>button:hover { 
-        background-color: #5BC0BE !important; 
+        background-color: #1C2541 !important; 
         color: #0A1128 !important; 
     }
     </style>
