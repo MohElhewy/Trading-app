@@ -12,13 +12,14 @@ st.markdown("""
     .stApp, [data-testid="stAppViewContainer"] { background-color: #0A1128 !important; }
     [data-testid="stSidebar"] { background-color: #070D1F !important; } 
     
-    /* Force ALL regular text, labels, and table cells to be White */
-    html, body, p, span, div, label, li, td, th { 
+    /* Base Text Color for paragraphs and labels */
+    p, label, li, td, th { 
         color: #FFFFFF !important; 
     }
     
-    /* Keep Headers Electric Blue */
-    h1, h2, h3, h4, h5, h6 { 
+    /* Force Headers to be Electric Blue (Including Streamlit inner spans) */
+    h1, h2, h3, h4, h5, h6,
+    h1 span, h2 span, h3 span, h4 span, h5 span, h6 span { 
         color: #5BC0BE !important; 
     }
     
@@ -27,9 +28,19 @@ st.markdown("""
         color: #5BC0BE !important; 
     }
     
-    /* Input box text color fix */
-    input, .stSelectbox div[data-baseweb="select"] { 
+    /* FIX: Input Boxes (Dark Background, White Text) */
+    input[type="text"], input[type="number"] { 
+        background-color: #1C2541 !important; 
         color: #FFFFFF !important; 
+        border: 1px solid #5BC0BE !important;
+        border-radius: 4px;
+    }
+    
+    /* FIX: Dropdown/Selectbox */
+    div[data-baseweb="select"] > div {
+        background-color: #1C2541 !important;
+        color: #FFFFFF !important;
+        border: 1px solid #5BC0BE !important;
     }
     
     /* Button Styling */
@@ -73,7 +84,6 @@ st.title(title_text)
 st.markdown("---")
 
 # 3. Core Calculations & Validation
-# Ensure previous day data is entered before calculating Pivot points
 if high > 0 and low > 0 and close > 0:
     pivot = (high + low + close) / 3
     r1 = (2 * pivot) - low
@@ -93,7 +103,6 @@ def evaluate_strategy_with_conditions(strategy_name, price, vwap, rsi, vol_statu
     decision = "Don't Enter"
     conditions = {}
     
-    # RSI Safety Cap 
     overbought = rsi > 75
     conditions["Not Overbought (RSI <= 75)"] = not overbought
 
